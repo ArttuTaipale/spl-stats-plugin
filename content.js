@@ -6,14 +6,23 @@ script.src = chrome.runtime.getURL('interceptor.js');
 script.onload = function () { this.remove(); };
 (document.head || document.documentElement).appendChild(script);
 
-// Listen for intercepted match data from the page
+// Map page-level message types to background message types
+const MESSAGE_MAP = {
+  'SPL_STATS_MATCH_DATA': 'matchDataCaptured',
+  'SPL_STATS_TEAM_DATA': 'teamDataCaptured'
+};
+
+// Listen for intercepted data from the page
 window.addEventListener('message', (event) => {
   if (event.source !== window) return;
-  if (!event.data || event.data.type !== 'SPL_STATS_MATCH_DATA') return;
+  if (!event.data || !event.data.type) return;
+
+  const bgType = MESSAGE_MAP[event.data.type];
+  if (!bgType) return;
 
   // Forward to the background service worker
   chrome.runtime.sendMessage({
-    type: 'matchDataCaptured',
+    type: bgType,
     payload: event.data.payload
   });
 });

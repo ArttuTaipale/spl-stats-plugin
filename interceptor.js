@@ -1,8 +1,26 @@
-// interceptor.js — Injected into the page to capture getMatch API responses
+// interceptor.js — Injected into the page to capture getMatch and getTeam API responses
 // This runs in the PAGE context (not extension context) so it can read response bodies.
 
 (function () {
-  const TARGET = '/taso/rest/getMatch';
+  const TARGETS = {
+    '/taso/rest/getMatch': function (data) {
+      if (data && data.match && data.call && data.call.method === 'getMatch') {
+        window.postMessage({ type: 'SPL_STATS_MATCH_DATA', payload: data }, '*');
+      }
+    },
+    '/taso/rest/getTeam': function (data) {
+      if (data && data.team && data.call && data.call.method === 'getTeam') {
+        window.postMessage({ type: 'SPL_STATS_TEAM_DATA', payload: data }, '*');
+      }
+    }
+  };
+
+  function matchTarget(url) {
+    for (var path in TARGETS) {
+      if (url.indexOf(path) !== -1) return TARGETS[path];
+    }
+    return null;
+  }
 
   // --- Intercept XMLHttpRequest ---
   const origOpen = XMLHttpRequest.prototype.open;
@@ -14,18 +32,15 @@
   };
 
   XMLHttpRequest.prototype.send = function () {
-    if (this._splUrl && this._splUrl.indexOf(TARGET) !== -1) {
+    var handler = this._splUrl ? matchTarget(this._splUrl) : null;
+    if (handler) {
+      var h = handler;
       this.addEventListener('load', function () {
         try {
-          const data = JSON.parse(this.responseText);
-          if (data && data.match && data.call && data.call.method === 'getMatch') {
-            window.postMessage({
-              type: 'SPL_STATS_MATCH_DATA',
-              payload: data
-            }, '*');
-          }
+          var data = JSON.parse(this.responseText);
+          h(data);
         } catch (e) {
-          // Not valid JSON or not a match response, ignore
+          // Not valid JSON, ignore
         }
       });
     }
@@ -37,19 +52,13 @@
   window.fetch = function () {
     const input = arguments[0];
     const url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+    var handler = matchTarget(url);
 
-    if (url.indexOf(TARGET) !== -1) {
+    if (handler) {
+      var h = handler;
       return origFetch.apply(this, arguments).then(function (response) {
-        // Clone so the original consumer can still read the body
-        const clone = response.clone();
-        clone.json().then(function (data) {
-          if (data && data.match && data.call && data.call.method === 'getMatch') {
-            window.postMessage({
-              type: 'SPL_STATS_MATCH_DATA',
-              payload: data
-            }, '*');
-          }
-        }).catch(function () { });
+        var clone = response.clone();
+        clone.json().then(function (data) { h(data); }).catch(function () { });
         return response;
       });
     }

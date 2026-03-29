@@ -131,3 +131,89 @@ function generateExcel(matchInfo, players) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+/**
+ * Extract player roster from a getTeam API response.
+ * @param {Object} data - Full API response (with .team property)
+ * @returns {Object} { teamInfo, players[] }
+ */
+function extractTeamPlayers(data) {
+  const team = data.team;
+
+  const teamInfo = {
+    teamId: team.team_id,
+    teamName: team.team_name
+  };
+
+  const players = (team.players || []).filter(function (p) {
+    return !p.removed || p.removed === '0000-00-00 00:00:00';
+  }).map(function (p) {
+    return {
+      playerId: p.player_id,
+      name: (p.first_name + ' ' + p.last_name).trim(),
+      firstName: p.first_name,
+      lastName: p.last_name,
+      position: p.position_en || p.position || '',
+      shirtNumber: p.shirt_number || ''
+    };
+  });
+
+  return { teamInfo, players };
+}
+
+/**
+ * Generate an Excel file (.xlsx) from team player roster and trigger download.
+ * @param {Object} teamInfo - Team metadata
+ * @param {Array} players - Array of player objects
+ */
+function generateTeamExcel(teamInfo, players) {
+  const headers = [
+    'Player ID',
+    'Name',
+    'First Name',
+    'Last Name',
+    'Position',
+    'Jersey Number'
+  ];
+
+  const rows = players.map(function (p) {
+    return [
+      p.playerId,
+      p.name,
+      p.firstName,
+      p.lastName,
+      p.position,
+      p.shirtNumber
+    ];
+  });
+
+  const wsData = [headers, ...rows];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+  ws['!cols'] = [
+    { wch: 10 },  // Player ID
+    { wch: 24 },  // Name
+    { wch: 16 },  // First Name
+    { wch: 16 },  // Last Name
+    { wch: 14 },  // Position
+    { wch: 14 }   // Jersey Number
+  ];
+
+  const wb = XLSX.utils.book_new();
+  const sheetName = teamInfo.teamName.substring(0, 31);
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+  const wbOut = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([wbOut], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+  const fileName = (teamInfo.teamName + '_players.xlsx')
+    .replace(/[^a-zA-Z0-9._\-() ]/g, '');
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
