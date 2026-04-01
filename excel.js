@@ -3,10 +3,11 @@
 /**
  * Build an Excel formula string for total points at a given row.
  *
- * Column layout (1-indexed):
- *   D = position_abbr, F = minutes, G = goals, H = assists,
+ * Column layout:
+ *   A = player_id, B = player_name, C = position, D = position_abbr,
+ *   E = gameweek_number, F = minutes, G = goals, H = assists,
  *   I = goals_conceded, J = own_goals, K = penalties_missed,
- *   L = yellow_cards, M = red_cards, N = saves, P = points
+ *   L = yellow_cards, M = red_cards, N = saves, O = bonus, P = points
  *
  * Scoring rules:
  *   Goal points:        goals * (V/P=6, KK=5, H/default=4)
@@ -53,6 +54,7 @@ function generateExcel(matchInfo, players) {
   const headers = [
     'player_id',
     'player_name',
+    'position',
     'position_abbr',
     'gameweek_number',
     'minutes',
