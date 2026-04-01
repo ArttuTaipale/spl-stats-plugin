@@ -54,8 +54,6 @@ function generateExcel(matchInfo, players) {
   const headers = [
     'player_id',
     'player_name',
-    'position',
-    'position_abbr',
     'gameweek_number',
     'minutes',
     'goals',
@@ -66,8 +64,7 @@ function generateExcel(matchInfo, players) {
     'yellow_cards',
     'red_cards',
     'saves',
-    'bonus',
-    'points'
+    'bonus'
   ];
 
   const rows = players.map((p, i) => {
