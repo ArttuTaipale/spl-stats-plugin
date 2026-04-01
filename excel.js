@@ -71,8 +71,6 @@ function generateExcel(matchInfo, players) {
     return [
       p.playerId,
       p.playerName,
-      p.position,
-      p.positionAbbr,
       p.round,
       p.minutesPlayed,
       p.goals,
@@ -83,7 +81,6 @@ function generateExcel(matchInfo, players) {
       p.yellowCards,
       p.redCards,
       p.saves,
-      '',
       0
     ];
   });
