@@ -1,6 +1,16 @@
 // stats.js — Extract per-player statistics from a getMatch API response
 
 /**
+ * Convert an event's time_sec to absolute match time.
+ * time_sec resets to 0 at the start of each period (half),
+ * so we offset by (period - 1) * 2700 (45 minutes per half).
+ */
+function absoluteTimeSec(event) {
+  const period = parseInt(event.period) || 1;
+  return (event.time_sec || 0) + (period - 1) * 2700;
+}
+
+/**
  * Extract player stats from the match API response.
  * @param {Object} data - Full API response (with .match property)
  * @returns {Object} { matchInfo, players[] }
@@ -141,7 +151,7 @@ function countOwnGoals(match) {
   // Alternative approach: track goal events in order and check score changes
   const goalEvents = events
     .filter(e => e.code === 'maali')
-    .sort((a, b) => a.time_sec - b.time_sec);
+    .sort((a, b) => absoluteTimeSec(a) - absoluteTimeSec(b));
 
   let prevA = 0;
   let prevB = 0;
@@ -213,13 +223,13 @@ function countConcededGoals(match) {
   const events = match.events || [];
   const lineups = match.lineups || [];
 
-  // Get all goals sorted by time
+  // Get all goals sorted by absolute time
   const goalEvents = events
     .filter(e => e.code === 'maali')
-    .sort((a, b) => a.time_sec - b.time_sec);
+    .sort((a, b) => absoluteTimeSec(a) - absoluteTimeSec(b));
 
-  // Determine the last event time as match end
-  const matchEndSec = events.reduce((max, e) => Math.max(max, e.time_sec || 0), 0);
+  // Determine the last event time as match end (using absolute time)
+  const matchEndSec = events.reduce((max, e) => Math.max(max, absoluteTimeSec(e)), 0);
 
   // Build per-player on-pitch intervals: [startSec, endSec]
   // Starters: start at 0, end at sub-out time or match end
@@ -231,9 +241,9 @@ function countConcededGoals(match) {
     if (event.code !== 'vaihto') continue;
     const pid = String(event.player_id);
     if (event.description === '+') {
-      subInTimes[pid] = event.time_sec;
+      subInTimes[pid] = absoluteTimeSec(event);
     } else if (event.description === '-') {
-      subOutTimes[pid] = event.time_sec;
+      subOutTimes[pid] = absoluteTimeSec(event);
     }
   }
 
@@ -254,15 +264,7 @@ function countConcededGoals(match) {
     // Count opposing goals during this player's time on pitch
     let conceded = 0;
     for (const goal of goalEvents) {
-      if (goal.time_sec < onSec || goal.time_sec > offSec) continue;
-
-      // Did the opposing team score?
-      const goalForA = goal.team === 'A';
-      // Check score change to handle own goals correctly
-      // (an own goal by team A increases B's score even though team='A')
-      // We already have s_A/s_B but need prev scores — use sorted order
-      // Simpler: if goal benefits the opposing team, it's conceded
-      // Actually, just check: did the opponent's score go up?
+      if (absoluteTimeSec(goal) < onSec || absoluteTimeSec(goal) > offSec) continue;
     }
 
     counts[pid] = conceded;
@@ -291,7 +293,7 @@ function countConcededGoals(match) {
       const offSec = subOutTimes[pid] !== undefined ? subOutTimes[pid] : matchEndSec;
 
       // Was this player on pitch when the goal happened?
-      if (goal.time_sec < onSec || goal.time_sec > offSec) continue;
+      if (absoluteTimeSec(goal) < onSec || absoluteTimeSec(goal) > offSec) continue;
 
       // Did the opposing team's score increase?
       if (isTeamA && bScored) {
